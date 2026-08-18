@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
@@ -416,8 +417,14 @@ class MainActivity : AppCompatActivity() {
         val apps =
             manager.getInstalledApps()
 
+        val mandatoryPackages =
+            getMandatoryPackages()
+
         appAdapter =
-            AppAdapter(apps)
+            AppAdapter(
+                apps,
+                mandatoryPackages
+            )
 
         recyclerView.layoutManager =
             LinearLayoutManager(this)
@@ -562,6 +569,77 @@ class MainActivity : AppCompatActivity() {
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    private fun getMandatoryPackages(): Set<String> {
+
+        val mandatory =
+            mutableSetOf<String>()
+
+        val packageManager =
+            packageManager
+
+        // ----------------------------------------
+        // NightGuard itself
+        // ----------------------------------------
+
+        mandatory.add(
+            packageName
+        )
+
+        // ----------------------------------------
+        // Default launcher
+        // ----------------------------------------
+
+        val launcherIntent =
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+
+        packageManager
+            .resolveActivity(
+                launcherIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            ?.activityInfo
+            ?.packageName
+            ?.let { launcherPackage ->
+
+                mandatory.add(
+                    launcherPackage
+                )
+            }
+
+        // ----------------------------------------
+        // Default phone / dialer
+        // ----------------------------------------
+
+        val dialIntent =
+            Intent(Intent.ACTION_DIAL)
+
+        packageManager
+            .resolveActivity(
+                dialIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            ?.activityInfo
+            ?.packageName
+            ?.let { dialerPackage ->
+
+                mandatory.add(
+                    dialerPackage
+                )
+            }
+
+        // ----------------------------------------
+        // Android System UI
+        // ----------------------------------------
+
+        mandatory.add(
+            "com.android.systemui"
+        )
+
+        return mandatory
     }
 
     private fun setupLockingSwitch() {

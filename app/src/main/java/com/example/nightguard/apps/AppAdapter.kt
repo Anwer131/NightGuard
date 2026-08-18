@@ -11,24 +11,21 @@ import com.example.nightguard.R
 import com.example.nightguard.model.AppInfo
 
 class AppAdapter(
-    private val apps: List<AppInfo>
+    private val allApps: List<AppInfo>,
+    private val mandatoryPackages: Set<String> = emptySet()
 ) : RecyclerView.Adapter<AppAdapter.AppViewHolder>() {
 
-    /*
-     * Apps currently displayed in the RecyclerView.
+    /**
+     * Apps currently displayed by RecyclerView.
      *
      * Initially this contains all installed apps.
-     * When the user searches, this list contains only
-     * the matching apps.
+     * When the user searches, this list is filtered.
      */
-    private var filteredApps =
-        apps.toList()
+    private var displayedApps =
+        allApps.toList()
 
-    /*
-     * Packages selected by the user.
-     *
-     * This contains the complete whitelist, not just
-     * the apps currently visible after filtering.
+    /**
+     * Packages currently selected by the user.
      */
     private val selectedPackages =
         mutableSetOf<String>()
@@ -45,6 +42,9 @@ class AppAdapter(
 
         val checkBox: CheckBox =
             itemView.findViewById(R.id.appCheckBox)
+
+        val mandatoryText: TextView =
+            itemView.findViewById(R.id.mandatoryText)
     }
 
     override fun onCreateViewHolder(
@@ -70,76 +70,97 @@ class AppAdapter(
     ) {
 
         val app =
-            filteredApps[position]
+            displayedApps[position]
+
+        val isMandatory =
+            mandatoryPackages.contains(
+                app.packageName
+            )
 
         holder.name.text =
             app.appName
 
         holder.icon.setImageDrawable(
-            holder.itemView.context
-                .packageManager
+            holder.itemView.context.packageManager
                 .getApplicationIcon(
                     app.packageName
                 )
         )
 
-        /*
-         * Remove the previous listener before changing
-         * isChecked.
-         *
-         * Otherwise RecyclerView recycling can trigger
-         * the listener unexpectedly.
-         */
-        holder.checkBox.setOnCheckedChangeListener(null)
+        // Important when RecyclerView reuses a row.
+        holder.checkBox.setOnCheckedChangeListener(
+            null
+        )
 
         holder.checkBox.isChecked =
             selectedPackages.contains(
                 app.packageName
             )
 
-        holder.checkBox.setOnCheckedChangeListener {
-                _,
-                checked ->
+        if (isMandatory) {
 
-            if (checked) {
+            holder.checkBox.isChecked = true
+            holder.checkBox.isEnabled = false
 
-                selectedPackages.add(
-                    app.packageName
-                )
+            holder.mandatoryText.visibility =
+                View.VISIBLE
 
-            } else {
+            holder.mandatoryText.text =
+                "Always allowed"
 
-                selectedPackages.remove(
-                    app.packageName
-                )
+        } else {
+
+            holder.checkBox.isEnabled = true
+
+            holder.mandatoryText.visibility =
+                View.GONE
+
+            holder.checkBox.setOnCheckedChangeListener {
+                    _,
+                    checked ->
+
+                if (checked) {
+
+                    selectedPackages.add(
+                        app.packageName
+                    )
+
+                } else {
+
+                    selectedPackages.remove(
+                        app.packageName
+                    )
+                }
             }
         }
     }
 
-    override fun getItemCount(): Int {
-        return filteredApps.size
-    }
+    override fun getItemCount(): Int =
+        displayedApps.size
 
-    /*
-     * Filter apps based on the application name.
+    /**
+     * Filter apps by name.
      *
-     * Search is case-insensitive.
+     * Example:
      *
-     * Empty search shows all installed apps.
+     * filter("chrome")
+     *
+     * will display apps whose names contain
+     * "chrome".
      */
     fun filter(query: String) {
 
         val searchQuery =
             query.trim()
 
-        filteredApps =
+        displayedApps =
             if (searchQuery.isEmpty()) {
 
-                apps.toList()
+                allApps.toList()
 
             } else {
 
-                apps.filter { app ->
+                allApps.filter { app ->
 
                     app.appName
                         .contains(
@@ -152,18 +173,22 @@ class AppAdapter(
         notifyDataSetChanged()
     }
 
-    /*
-     * Return the complete whitelist.
-     *
-     * This is NOT affected by search filtering.
+    /**
+     * Return all currently selected packages.
      */
     fun getSelectedPackages(): Set<String> {
+
+        // Make absolutely sure mandatory apps
+        // are always part of the whitelist.
+        selectedPackages.addAll(
+            mandatoryPackages
+        )
 
         return selectedPackages.toSet()
     }
 
-    /*
-     * Restore the saved whitelist.
+    /**
+     * Restore saved whitelist.
      */
     fun setSelectedPackages(
         packages: Set<String>
@@ -173,6 +198,11 @@ class AppAdapter(
 
         selectedPackages.addAll(
             packages
+        )
+
+        // Mandatory apps can never be removed.
+        selectedPackages.addAll(
+            mandatoryPackages
         )
 
         notifyDataSetChanged()
