@@ -14,6 +14,22 @@ class AppAdapter(
     private val apps: List<AppInfo>
 ) : RecyclerView.Adapter<AppAdapter.AppViewHolder>() {
 
+    /*
+     * Apps currently displayed in the RecyclerView.
+     *
+     * Initially this contains all installed apps.
+     * When the user searches, this list contains only
+     * the matching apps.
+     */
+    private var filteredApps =
+        apps.toList()
+
+    /*
+     * Packages selected by the user.
+     *
+     * This contains the complete whitelist, not just
+     * the apps currently visible after filtering.
+     */
     private val selectedPackages =
         mutableSetOf<String>()
 
@@ -36,13 +52,14 @@ class AppAdapter(
         viewType: Int
     ): AppViewHolder {
 
-        val view = LayoutInflater
-            .from(parent.context)
-            .inflate(
-                R.layout.app_item,
-                parent,
-                false
-            )
+        val view =
+            LayoutInflater
+                .from(parent.context)
+                .inflate(
+                    R.layout.app_item,
+                    parent,
+                    false
+                )
 
         return AppViewHolder(view)
     }
@@ -52,43 +69,111 @@ class AppAdapter(
         position: Int
     ) {
 
-        val app = apps[position]
+        val app =
+            filteredApps[position]
 
-        holder.name.text = app.appName
+        holder.name.text =
+            app.appName
 
         holder.icon.setImageDrawable(
-            holder.itemView.context.packageManager
-                .getApplicationIcon(app.packageName)
+            holder.itemView.context
+                .packageManager
+                .getApplicationIcon(
+                    app.packageName
+                )
         )
 
+        /*
+         * Remove the previous listener before changing
+         * isChecked.
+         *
+         * Otherwise RecyclerView recycling can trigger
+         * the listener unexpectedly.
+         */
         holder.checkBox.setOnCheckedChangeListener(null)
 
         holder.checkBox.isChecked =
-            selectedPackages.contains(app.packageName)
+            selectedPackages.contains(
+                app.packageName
+            )
 
-        holder.checkBox.setOnCheckedChangeListener { _, checked ->
+        holder.checkBox.setOnCheckedChangeListener {
+                _,
+                checked ->
 
             if (checked) {
-                selectedPackages.add(app.packageName)
+
+                selectedPackages.add(
+                    app.packageName
+                )
+
             } else {
-                selectedPackages.remove(app.packageName)
+
+                selectedPackages.remove(
+                    app.packageName
+                )
             }
         }
     }
 
     override fun getItemCount(): Int {
-        return apps.size
+        return filteredApps.size
     }
 
+    /*
+     * Filter apps based on the application name.
+     *
+     * Search is case-insensitive.
+     *
+     * Empty search shows all installed apps.
+     */
+    fun filter(query: String) {
+
+        val searchQuery =
+            query.trim()
+
+        filteredApps =
+            if (searchQuery.isEmpty()) {
+
+                apps.toList()
+
+            } else {
+
+                apps.filter { app ->
+
+                    app.appName
+                        .contains(
+                            searchQuery,
+                            ignoreCase = true
+                        )
+                }
+            }
+
+        notifyDataSetChanged()
+    }
+
+    /*
+     * Return the complete whitelist.
+     *
+     * This is NOT affected by search filtering.
+     */
     fun getSelectedPackages(): Set<String> {
+
         return selectedPackages.toSet()
     }
 
+    /*
+     * Restore the saved whitelist.
+     */
     fun setSelectedPackages(
         packages: Set<String>
     ) {
+
         selectedPackages.clear()
-        selectedPackages.addAll(packages)
+
+        selectedPackages.addAll(
+            packages
+        )
 
         notifyDataSetChanged()
     }

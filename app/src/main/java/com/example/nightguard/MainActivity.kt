@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -31,6 +32,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var startTimeButton: Button
     private lateinit var endTimeButton: Button
+
+    private lateinit var appSearchView: SearchView
 
     private lateinit var modeText: TextView
     private lateinit var scheduleText: TextView
@@ -150,6 +153,9 @@ class MainActivity : AppCompatActivity() {
         scheduleText =
             findViewById(R.id.scheduleText)
 
+        appSearchView =
+            findViewById(R.id.appSearchView)
+
         whitelistRepository =
             WhitelistRepository(this)
 
@@ -163,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         setupTimeButtons()
 
         loadApps()
+        setupAppSearch()
     }
 
     /**
@@ -420,6 +427,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupAppSearch() {
+
+        appSearchView.setOnQueryTextListener(
+            object : SearchView.OnQueryTextListener {
+
+                override fun onQueryTextSubmit(
+                    query: String?
+                ): Boolean {
+
+                    appAdapter.filter(
+                        query.orEmpty()
+                    )
+
+                    return true
+                }
+
+                override fun onQueryTextChange(
+                    newText: String?
+                ): Boolean {
+
+                    appAdapter.filter(
+                        newText.orEmpty()
+                    )
+
+                    return true
+                }
+            }
+        )
+    }
+
     /**
      * Load the previously saved whitelist.
      */
@@ -455,6 +492,7 @@ class MainActivity : AppCompatActivity() {
 
             saveButton.isEnabled = false
             recyclerView.isEnabled = false
+            appSearchView.isEnabled = false
 
             startTimeButton.isEnabled = false
             endTimeButton.isEnabled = false
@@ -474,6 +512,7 @@ class MainActivity : AppCompatActivity() {
 
             saveButton.isEnabled = true
             recyclerView.isEnabled = true
+            appSearchView.isEnabled = true
 
             startTimeButton.isEnabled = true
             endTimeButton.isEnabled = true

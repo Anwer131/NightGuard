@@ -97,6 +97,14 @@
         android:paddingTop="12dp"
         android:paddingBottom="6dp" />
 
+    <SearchView
+        android:id="@+id/appSearchView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:hint="Search apps"
+        android:iconifiedByDefault="false" />
+
     <!-- Installed Apps -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/appRecyclerView"
