@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.SearchView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var modeText: TextView
     private lateinit var scheduleText: TextView
 
+    private lateinit var lockingSwitch: Switch
     private lateinit var appAdapter: AppAdapter
     private lateinit var whitelistRepository: WhitelistRepository
     private lateinit var nightModeManager: NightModeManager
@@ -153,6 +155,9 @@ class MainActivity : AppCompatActivity() {
         scheduleText =
             findViewById(R.id.scheduleText)
 
+        lockingSwitch =
+            findViewById(R.id.lockingSwitch)
+
         appSearchView =
             findViewById(R.id.appSearchView)
 
@@ -170,6 +175,7 @@ class MainActivity : AppCompatActivity() {
 
         loadApps()
         setupAppSearch()
+        setupLockingSwitch()
     }
 
     /**
@@ -555,6 +561,96 @@ class MainActivity : AppCompatActivity() {
                 "Whitelist saved",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+    }
+
+    private fun setupLockingSwitch() {
+
+        lockingSwitch.setOnCheckedChangeListener { _, isChecked ->
+
+            if (nightModeManager.isNightMode() && !isChecked) {
+
+                lockingSwitch.isChecked = true
+
+                Toast.makeText(
+                    this,
+                    "NightGuard cannot be disabled during Night Mode",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                return@setOnCheckedChangeListener
+            }
+
+            nightModeManager.setLockingEnabled(isChecked)
+
+            updateModeUI()
+            updateLockingSwitch()
+        }
+
+        updateLockingSwitch()
+    }
+
+    private fun handleLockingSwitchChange(
+        isChecked: Boolean
+    ) {
+
+        val currentlyNight =
+            nightModeManager.isNightMode()
+
+        if (currentlyNight && !isChecked) {
+
+            // Don't allow disabling during Night Mode.
+            lockingSwitch.setOnCheckedChangeListener(null)
+
+            lockingSwitch.isChecked = true
+
+            lockingSwitch.setOnCheckedChangeListener { _, checked ->
+                handleLockingSwitchChange(checked)
+            }
+
+            Toast.makeText(
+                this,
+                "NightGuard cannot be disabled during Night Mode",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        nightModeManager.setLockingEnabled(
+            isChecked
+        )
+
+        updateModeUI()
+        updateLockingSwitch()
+    }
+
+    private fun updateLockingSwitch() {
+
+        val isLocking =
+            nightModeManager.isLockingEnabled()
+
+        val isNight =
+            nightModeManager.isNightMode()
+
+        lockingSwitch.setOnCheckedChangeListener(null)
+
+        if (isNight) {
+
+            // Night Mode:
+            // Always ON.
+            lockingSwitch.isChecked = true
+
+        } else {
+
+            // Day Mode:
+            // Use the user's saved state.
+            lockingSwitch.isChecked = isLocking
+        }
+
+        lockingSwitch.setOnCheckedChangeListener { _, isChecked ->
+
+            handleLockingSwitchChange(isChecked)
         }
     }
 
