@@ -1,0 +1,10 @@
+<resources>
+
+    <string name="app_name">NightGuard</string>
+
+    <string
+        name="accessibility_service_description">
+        NightGuard prevents non-whitelisted apps from being opened during scheduled night hours.
+    </string>
+
+</resources>

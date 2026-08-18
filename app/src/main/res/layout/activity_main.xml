@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <!-- App Name -->
+    <TextView
+        android:id="@+id/appNameText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="NightGuard"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Current Mode -->
+    <TextView
+        android:id="@+id/modeText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="DAY MODE"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingTop="6dp"
+        android:paddingBottom="4dp" />
+
+    <!-- Current Schedule -->
+    <TextView
+        android:id="@+id/scheduleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Night mode: 11:00 PM - 7:00 AM"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:paddingBottom="12dp" />
+
+    <!-- Schedule settings -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Night Mode Schedule"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Start / End Time -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/startTimeButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="11:00 PM" />
+
+        <Button
+            android:id="@+id/endTimeButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="07:00 AM" />
+
+    </LinearLayout>
+
+    <!-- Save Schedule -->
+    <Button
+        android:id="@+id/saveScheduleButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SAVE SCHEDULE"
+        android:textStyle="bold"
+        android:layout_marginTop="4dp" />
+
+    <!-- Allowed Apps -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Allowed Apps"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:paddingTop="12dp"
+        android:paddingBottom="6dp" />
+
+    <!-- Installed Apps -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/appRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Save Whitelist -->
+    <Button
+        android:id="@+id/saveButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SAVE WHITELIST"
+        android:textStyle="bold"
+        android:layout_marginTop="4dp" />
+
+</LinearLayout>
