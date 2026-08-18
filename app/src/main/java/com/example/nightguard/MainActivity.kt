@@ -1,7 +1,11 @@
 package com.example.nightguard
 
+import android.annotation.SuppressLint
 import android.app.TimePickerDialog
+import android.content.ComponentName
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -13,6 +17,7 @@ import com.example.nightguard.apps.AppAdapter
 import com.example.nightguard.apps.InstalledAppsManager
 import com.example.nightguard.core.NightModeManager
 import com.example.nightguard.data.WhitelistRepository
+import com.example.nightguard.service.NightGuardAccessibilityService
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -37,24 +42,92 @@ class MainActivity : AppCompatActivity() {
     private val timeFormatter =
         DateTimeFormatter.ofPattern("hh:mm a")
 
-    // ---------------------------------------------------------
-    // Temporary schedule selections
-    //
-    // These values change when the user uses the time picker.
-    // They are only persisted after SAVE SCHEDULE is pressed.
-    // ---------------------------------------------------------
-
+    // Temporary schedule values.
+    // They are only persisted when SAVE SCHEDULE is pressed.
     private var selectedStartTime: LocalTime? = null
     private var selectedEndTime: LocalTime? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_main)
+        /*
+         * NightGuard cannot function without Accessibility Service.
+         *
+         * Therefore, don't initialize the main application UI until
+         * Accessibility permission has been granted.
+         */
+        if (isAccessibilityServiceEnabled()) {
 
-        // -----------------------------------------------------
-        // Views
-        // -----------------------------------------------------
+            initializeMainScreen()
+
+        } else {
+
+            showAccessibilityRequiredScreen()
+        }
+    }
+
+    /**
+     * Check whether NightGuard's Accessibility Service is enabled.
+     */
+    private fun isAccessibilityServiceEnabled(): Boolean {
+
+        val componentName =
+            ComponentName(
+                this,
+                NightGuardAccessibilityService::class.java
+            )
+
+        val enabledServices =
+            Settings.Secure.getString(
+                contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+
+        return enabledServices
+            ?.split(":")
+            ?.any {
+                it.equals(
+                    componentName.flattenToString(),
+                    ignoreCase = true
+                )
+            } == true
+    }
+
+    /**
+     * Show the screen displayed when Accessibility permission
+     * has not yet been granted.
+     */
+    @SuppressLint("MissingInflatedId")
+    private fun showAccessibilityRequiredScreen() {
+
+        setContentView(
+            R.layout.activity_accessibility_required
+        )
+
+        val enableButton =
+            findViewById<Button>(
+                R.id.enableAccessibilityButton
+            )
+
+        enableButton.setOnClickListener {
+
+            startActivity(
+                Intent(
+                    Settings.ACTION_ACCESSIBILITY_SETTINGS
+                )
+            )
+        }
+    }
+
+    /**
+     * Initialize the actual NightGuard application UI.
+     *
+     * This is deliberately separated from onCreate() so that
+     * the main UI is never shown while Accessibility is disabled.
+     */
+    private fun initializeMainScreen() {
+
+        setContentView(R.layout.activity_main)
 
         recyclerView =
             findViewById(R.id.appRecyclerView)
@@ -77,19 +150,11 @@ class MainActivity : AppCompatActivity() {
         scheduleText =
             findViewById(R.id.scheduleText)
 
-        // -----------------------------------------------------
-        // Managers / repositories
-        // -----------------------------------------------------
-
         whitelistRepository =
             WhitelistRepository(this)
 
         nightModeManager =
             NightModeManager(this)
-
-        // -----------------------------------------------------
-        // Initial setup
-        // -----------------------------------------------------
 
         loadCurrentSchedule()
 
@@ -100,12 +165,8 @@ class MainActivity : AppCompatActivity() {
         loadApps()
     }
 
-    // =========================================================
-    // SCHEDULE
-    // =========================================================
-
     /**
-     * Load the currently persisted schedule.
+     * Load the currently saved schedule.
      */
     private fun loadCurrentSchedule() {
 
@@ -119,25 +180,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Update the text shown on the start/end buttons.
+     * Display selected schedule times.
      */
     private fun updateTimeButtons() {
 
-        selectedStartTime?.let { time ->
+        selectedStartTime?.let {
 
             startTimeButton.text =
-                time.format(timeFormatter)
+                it.format(timeFormatter)
         }
 
-        selectedEndTime?.let { time ->
+        selectedEndTime?.let {
 
             endTimeButton.text =
-                time.format(timeFormatter)
+                it.format(timeFormatter)
         }
     }
 
     /**
-     * Configure schedule buttons.
+     * Configure schedule time picker buttons.
      */
     private fun setupTimeButtons() {
 
@@ -232,11 +293,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Persist the selected schedule.
+     * Save the configured Night Mode schedule.
      */
     private fun saveSchedule() {
 
-        // Never allow schedule changes during Night Mode.
         if (nightModeManager.isNightMode()) {
 
             showLockedMessage()
@@ -250,7 +310,6 @@ class MainActivity : AppCompatActivity() {
         val end =
             selectedEndTime
 
-        // Both values must exist.
         if (start == null || end == null) {
 
             Toast.makeText(
@@ -262,11 +321,15 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Prevent a schedule such as:
-        //
-        // 23:00 -> 23:00
-        //
-        // which would otherwise mean "all day".
+        /*
+         * Prevent a schedule such as:
+         *
+         * 11:00 PM → 11:00 PM
+         *
+         * because that would effectively mean Night Mode
+         * is active for the entire day with the current
+         * cross-midnight logic.
+         */
         if (start == end) {
 
             Toast.makeText(
@@ -278,13 +341,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Save through NightModeManager.
         nightModeManager.saveNightSchedule(
             start,
             end
         )
 
-        // Refresh the UI using the persisted values.
         updateModeUI()
 
         Toast.makeText(
@@ -295,7 +356,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Update the current mode and schedule displayed at the top.
+     * Update the mode and schedule shown at the top.
      */
     private fun updateModeUI() {
 
@@ -331,10 +392,9 @@ class MainActivity : AppCompatActivity() {
         updateConfigurationState()
     }
 
-    // =========================================================
-    // APPLICATION LIST
-    // =========================================================
-
+    /**
+     * Load installed applications.
+     */
     private fun loadApps() {
 
         val manager =
@@ -360,6 +420,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Load the previously saved whitelist.
+     */
     private fun loadSavedWhitelist() {
 
         lifecycleScope.launch {
@@ -376,19 +439,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // =========================================================
-    // LOCKING
-    // =========================================================
-
     /**
-     * Lock configuration while Night Mode is active.
-     *
-     * Locked:
-     *
-     * - whitelist
-     * - start time
-     * - end time
-     * - save schedule
+     * Lock schedule and whitelist during Night Mode.
      */
     private fun updateConfigurationState() {
 
@@ -435,10 +487,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // =========================================================
-    // WHITELIST
-    // =========================================================
-
+    /**
+     * Save selected applications to the whitelist.
+     */
     private fun saveWhitelist() {
 
         if (nightModeManager.isNightMode()) {
@@ -468,10 +519,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // =========================================================
-    // UTILITIES
-    // =========================================================
-
+    /**
+     * Show a message when configuration is locked.
+     */
     private fun showLockedMessage() {
 
         Toast.makeText(
@@ -481,17 +531,40 @@ class MainActivity : AppCompatActivity() {
         ).show()
     }
 
-    // =========================================================
-    // LIFECYCLE
-    // =========================================================
-
+    /**
+     * Called whenever the Activity comes back to the foreground.
+     *
+     * This is important because the user enables Accessibility
+     * from Android Settings and then returns to NightGuard.
+     */
     override fun onResume() {
 
         super.onResume()
 
-        updateModeUI()
+        if (!isAccessibilityServiceEnabled()) {
 
-        if (::appAdapter.isInitialized) {
+            /*
+             * Accessibility is still disabled.
+             *
+             * Keep the user on the required-permission screen.
+             */
+            showAccessibilityRequiredScreen()
+
+            return
+        }
+
+        /*
+         * Accessibility has now been enabled.
+         *
+         * If the main UI has not been initialized yet, initialize it.
+         */
+        if (!::appAdapter.isInitialized) {
+
+            initializeMainScreen()
+
+        } else {
+
+            updateModeUI()
 
             updateConfigurationState()
         }
