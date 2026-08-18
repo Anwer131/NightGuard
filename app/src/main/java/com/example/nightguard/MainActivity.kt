@@ -4,10 +4,12 @@ import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.SearchView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -38,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var modeText: TextView
     private lateinit var scheduleText: TextView
 
+    private lateinit var lockingSwitch: Switch
     private lateinit var appAdapter: AppAdapter
     private lateinit var whitelistRepository: WhitelistRepository
     private lateinit var nightModeManager: NightModeManager
@@ -153,6 +156,9 @@ class MainActivity : AppCompatActivity() {
         scheduleText =
             findViewById(R.id.scheduleText)
 
+        lockingSwitch =
+            findViewById(R.id.lockingSwitch)
+
         appSearchView =
             findViewById(R.id.appSearchView)
 
@@ -170,6 +176,7 @@ class MainActivity : AppCompatActivity() {
 
         loadApps()
         setupAppSearch()
+        setupLockingSwitch()
     }
 
     /**
@@ -410,8 +417,14 @@ class MainActivity : AppCompatActivity() {
         val apps =
             manager.getInstalledApps()
 
+        val mandatoryPackages =
+            getMandatoryPackages()
+
         appAdapter =
-            AppAdapter(apps)
+            AppAdapter(
+                apps,
+                mandatoryPackages
+            )
 
         recyclerView.layoutManager =
             LinearLayoutManager(this)
@@ -555,6 +568,167 @@ class MainActivity : AppCompatActivity() {
                 "Whitelist saved",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+    }
+
+    private fun getMandatoryPackages(): Set<String> {
+
+        val mandatory =
+            mutableSetOf<String>()
+
+        val packageManager =
+            packageManager
+
+        // ----------------------------------------
+        // NightGuard itself
+        // ----------------------------------------
+
+        mandatory.add(
+            packageName
+        )
+
+        // ----------------------------------------
+        // Default launcher
+        // ----------------------------------------
+
+        val launcherIntent =
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+
+        packageManager
+            .resolveActivity(
+                launcherIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            ?.activityInfo
+            ?.packageName
+            ?.let { launcherPackage ->
+
+                mandatory.add(
+                    launcherPackage
+                )
+            }
+
+        // ----------------------------------------
+        // Default phone / dialer
+        // ----------------------------------------
+
+        val dialIntent =
+            Intent(Intent.ACTION_DIAL)
+
+        packageManager
+            .resolveActivity(
+                dialIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            ?.activityInfo
+            ?.packageName
+            ?.let { dialerPackage ->
+
+                mandatory.add(
+                    dialerPackage
+                )
+            }
+
+        // ----------------------------------------
+        // Android System UI
+        // ----------------------------------------
+
+        mandatory.add(
+            "com.android.systemui"
+        )
+
+        return mandatory
+    }
+
+    private fun setupLockingSwitch() {
+
+        lockingSwitch.setOnCheckedChangeListener { _, isChecked ->
+
+            if (nightModeManager.isNightMode() && !isChecked) {
+
+                lockingSwitch.isChecked = true
+
+                Toast.makeText(
+                    this,
+                    "NightGuard cannot be disabled during Night Mode",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                return@setOnCheckedChangeListener
+            }
+
+            nightModeManager.setLockingEnabled(isChecked)
+
+            updateModeUI()
+            updateLockingSwitch()
+        }
+
+        updateLockingSwitch()
+    }
+
+    private fun handleLockingSwitchChange(
+        isChecked: Boolean
+    ) {
+
+        val currentlyNight =
+            nightModeManager.isNightMode()
+
+        if (currentlyNight && !isChecked) {
+
+            // Don't allow disabling during Night Mode.
+            lockingSwitch.setOnCheckedChangeListener(null)
+
+            lockingSwitch.isChecked = true
+
+            lockingSwitch.setOnCheckedChangeListener { _, checked ->
+                handleLockingSwitchChange(checked)
+            }
+
+            Toast.makeText(
+                this,
+                "NightGuard cannot be disabled during Night Mode",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        nightModeManager.setLockingEnabled(
+            isChecked
+        )
+
+        updateModeUI()
+        updateLockingSwitch()
+    }
+
+    private fun updateLockingSwitch() {
+
+        val isLocking =
+            nightModeManager.isLockingEnabled()
+
+        val isNight =
+            nightModeManager.isNightMode()
+
+        lockingSwitch.setOnCheckedChangeListener(null)
+
+        if (isNight) {
+
+            // Night Mode:
+            // Always ON.
+            lockingSwitch.isChecked = true
+
+        } else {
+
+            // Day Mode:
+            // Use the user's saved state.
+            lockingSwitch.isChecked = isLocking
+        }
+
+        lockingSwitch.setOnCheckedChangeListener { _, isChecked ->
+
+            handleLockingSwitchChange(isChecked)
         }
     }
 

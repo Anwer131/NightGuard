@@ -14,6 +14,7 @@ class NightModeManager(context: Context) {
 
     companion object {
 
+        private const val KEY_LOCKING_ENABLED = "locking_enabled"
         private const val KEY_NIGHT_START = "night_start"
         private const val KEY_NIGHT_END = "night_end"
 
@@ -117,6 +118,10 @@ class NightModeManager(context: Context) {
      */
     fun isNightMode(): Boolean {
 
+        if(!isLockingEnabled()){
+            return false
+        }
+
         val now = LocalTime.now()
 
         val start = getNightStart()
@@ -146,5 +151,21 @@ class NightModeManager(context: Context) {
 
             now >= start || now < end
         }
+    }
+
+    fun isLockingEnabled(): Boolean {
+        return preferences.getBoolean(
+            KEY_LOCKING_ENABLED,
+            false
+        )
+    }
+
+    fun setLockingEnabled(enabled: Boolean) {
+        preferences.edit()
+            .putBoolean(
+                KEY_LOCKING_ENABLED,
+                enabled
+            )
+            .apply()
     }
 }

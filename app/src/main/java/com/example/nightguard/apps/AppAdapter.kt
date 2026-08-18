@@ -11,24 +11,21 @@ import com.example.nightguard.R
 import com.example.nightguard.model.AppInfo
 
 class AppAdapter(
-    private val apps: List<AppInfo>
+    private val allApps: List<AppInfo>,
+    private val mandatoryPackages: Set<String> = emptySet()
 ) : RecyclerView.Adapter<AppAdapter.AppViewHolder>() {
 
-    /*
-     * Apps currently displayed in the RecyclerView.
+    /**
+     * Apps currently displayed by RecyclerView.
      *
-     * Initially this contains all installed apps.
-     * When the user searches, this list contains only
-     * the matching apps.
+     * Initially all apps are displayed.
+     * Search updates this list.
      */
-    private var filteredApps =
-        apps.toList()
+    private var displayedApps =
+        allApps.toList()
 
-    /*
-     * Packages selected by the user.
-     *
-     * This contains the complete whitelist, not just
-     * the apps currently visible after filtering.
+    /**
+     * Packages currently selected/whitelisted.
      */
     private val selectedPackages =
         mutableSetOf<String>()
@@ -45,6 +42,9 @@ class AppAdapter(
 
         val checkBox: CheckBox =
             itemView.findViewById(R.id.appCheckBox)
+
+        val mandatoryText: TextView =
+            itemView.findViewById(R.id.mandatoryText)
     }
 
     override fun onCreateViewHolder(
@@ -70,100 +70,176 @@ class AppAdapter(
     ) {
 
         val app =
-            filteredApps[position]
+            displayedApps[position]
+
+        val isMandatory =
+            mandatoryPackages.contains(
+                app.packageName
+            )
 
         holder.name.text =
             app.appName
 
         holder.icon.setImageDrawable(
-            holder.itemView.context
-                .packageManager
+            holder.itemView.context.packageManager
                 .getApplicationIcon(
                     app.packageName
                 )
         )
 
         /*
-         * Remove the previous listener before changing
-         * isChecked.
-         *
-         * Otherwise RecyclerView recycling can trigger
-         * the listener unexpectedly.
+         * Important when RecyclerView
+         * reuses a row.
          */
-        holder.checkBox.setOnCheckedChangeListener(null)
+        holder.checkBox.setOnCheckedChangeListener(
+            null
+        )
 
         holder.checkBox.isChecked =
             selectedPackages.contains(
                 app.packageName
             )
 
-        holder.checkBox.setOnCheckedChangeListener {
-                _,
-                checked ->
+        if (isMandatory) {
 
-            if (checked) {
+            holder.checkBox.isChecked = true
 
-                selectedPackages.add(
-                    app.packageName
-                )
+            holder.checkBox.isEnabled = false
 
-            } else {
+            holder.mandatoryText.visibility =
+                View.VISIBLE
 
-                selectedPackages.remove(
-                    app.packageName
-                )
+            holder.mandatoryText.text =
+                "Always allowed"
+
+        } else {
+
+            holder.checkBox.isEnabled = true
+
+            holder.mandatoryText.visibility =
+                View.GONE
+
+            holder.checkBox.setOnCheckedChangeListener {
+                    _,
+                    checked ->
+
+                if (checked) {
+
+                    selectedPackages.add(
+                        app.packageName
+                    )
+
+                } else {
+
+                    selectedPackages.remove(
+                        app.packageName
+                    )
+                }
+
+                /*
+                 * Re-sort immediately so that
+                 * newly enabled apps move to
+                 * the top.
+                 */
+                refreshDisplayOrder()
             }
         }
     }
 
-    override fun getItemCount(): Int {
-        return filteredApps.size
+    override fun getItemCount(): Int =
+        displayedApps.size
+
+    /**
+     * Sort apps so that:
+     *
+     * 1. Selected/whitelisted apps appear first.
+     * 2. Mandatory apps are also treated as selected.
+     * 3. Unselected apps appear afterwards.
+     *
+     * Within each group apps are alphabetical.
+     */
+    private fun sortApps(
+        apps: List<com.example.nightguard.model.AppInfo>
+    ): List<com.example.nightguard.model.AppInfo> {
+
+        return apps.sortedWith(
+            compareByDescending<com.example.nightguard.model.AppInfo> {
+
+                selectedPackages.contains(
+                    it.packageName
+                ) ||
+                        mandatoryPackages.contains(
+                            it.packageName
+                        )
+
+            }.thenBy {
+
+                it.appName.lowercase()
+            }
+        )
     }
 
-    /*
-     * Filter apps based on the application name.
+    /**
+     * Refresh the current list while
+     * preserving the current search.
+     */
+    private fun refreshDisplayOrder() {
+
+        displayedApps =
+            sortApps(displayedApps)
+
+        notifyDataSetChanged()
+    }
+
+    /**
+     * Filter apps by name.
      *
-     * Search is case-insensitive.
-     *
-     * Empty search shows all installed apps.
+     * Selected apps remain at the top
+     * even when searching.
      */
     fun filter(query: String) {
 
         val searchQuery =
             query.trim()
 
-        filteredApps =
+        val filteredApps =
             if (searchQuery.isEmpty()) {
 
-                apps.toList()
+                allApps
 
             } else {
 
-                apps.filter { app ->
+                allApps.filter { app ->
 
-                    app.appName
-                        .contains(
-                            searchQuery,
-                            ignoreCase = true
-                        )
+                    app.appName.contains(
+                        searchQuery,
+                        ignoreCase = true
+                    )
                 }
             }
+
+        displayedApps =
+            sortApps(filteredApps)
 
         notifyDataSetChanged()
     }
 
-    /*
-     * Return the complete whitelist.
+    /**
+     * Return all currently selected packages.
      *
-     * This is NOT affected by search filtering.
+     * Mandatory apps are always included.
      */
     fun getSelectedPackages(): Set<String> {
+
+        selectedPackages.addAll(
+            mandatoryPackages
+        )
 
         return selectedPackages.toSet()
     }
 
-    /*
-     * Restore the saved whitelist.
+    /**
+     * Restore saved whitelist.
      */
     fun setSelectedPackages(
         packages: Set<String>
@@ -174,6 +250,20 @@ class AppAdapter(
         selectedPackages.addAll(
             packages
         )
+
+        /*
+         * Mandatory apps can never be removed.
+         */
+        selectedPackages.addAll(
+            mandatoryPackages
+        )
+
+        /*
+         * Apply the enabled-first ordering
+         * after restoring the whitelist.
+         */
+        displayedApps =
+            sortApps(displayedApps)
 
         notifyDataSetChanged()
     }
