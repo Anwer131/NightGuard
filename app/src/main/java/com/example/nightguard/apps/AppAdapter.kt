@@ -18,14 +18,14 @@ class AppAdapter(
     /**
      * Apps currently displayed by RecyclerView.
      *
-     * Initially this contains all installed apps.
-     * When the user searches, this list is filtered.
+     * Initially all apps are displayed.
+     * Search updates this list.
      */
     private var displayedApps =
         allApps.toList()
 
     /**
-     * Packages currently selected by the user.
+     * Packages currently selected/whitelisted.
      */
     private val selectedPackages =
         mutableSetOf<String>()
@@ -87,7 +87,10 @@ class AppAdapter(
                 )
         )
 
-        // Important when RecyclerView reuses a row.
+        /*
+         * Important when RecyclerView
+         * reuses a row.
+         */
         holder.checkBox.setOnCheckedChangeListener(
             null
         )
@@ -100,6 +103,7 @@ class AppAdapter(
         if (isMandatory) {
 
             holder.checkBox.isChecked = true
+
             holder.checkBox.isEnabled = false
 
             holder.mandatoryText.visibility =
@@ -131,6 +135,13 @@ class AppAdapter(
                         app.packageName
                     )
                 }
+
+                /*
+                 * Re-sort immediately so that
+                 * newly enabled apps move to
+                 * the top.
+                 */
+                refreshDisplayOrder()
             }
         }
     }
@@ -139,47 +150,87 @@ class AppAdapter(
         displayedApps.size
 
     /**
+     * Sort apps so that:
+     *
+     * 1. Selected/whitelisted apps appear first.
+     * 2. Mandatory apps are also treated as selected.
+     * 3. Unselected apps appear afterwards.
+     *
+     * Within each group apps are alphabetical.
+     */
+    private fun sortApps(
+        apps: List<com.example.nightguard.model.AppInfo>
+    ): List<com.example.nightguard.model.AppInfo> {
+
+        return apps.sortedWith(
+            compareByDescending<com.example.nightguard.model.AppInfo> {
+
+                selectedPackages.contains(
+                    it.packageName
+                ) ||
+                        mandatoryPackages.contains(
+                            it.packageName
+                        )
+
+            }.thenBy {
+
+                it.appName.lowercase()
+            }
+        )
+    }
+
+    /**
+     * Refresh the current list while
+     * preserving the current search.
+     */
+    private fun refreshDisplayOrder() {
+
+        displayedApps =
+            sortApps(displayedApps)
+
+        notifyDataSetChanged()
+    }
+
+    /**
      * Filter apps by name.
      *
-     * Example:
-     *
-     * filter("chrome")
-     *
-     * will display apps whose names contain
-     * "chrome".
+     * Selected apps remain at the top
+     * even when searching.
      */
     fun filter(query: String) {
 
         val searchQuery =
             query.trim()
 
-        displayedApps =
+        val filteredApps =
             if (searchQuery.isEmpty()) {
 
-                allApps.toList()
+                allApps
 
             } else {
 
                 allApps.filter { app ->
 
-                    app.appName
-                        .contains(
-                            searchQuery,
-                            ignoreCase = true
-                        )
+                    app.appName.contains(
+                        searchQuery,
+                        ignoreCase = true
+                    )
                 }
             }
+
+        displayedApps =
+            sortApps(filteredApps)
 
         notifyDataSetChanged()
     }
 
     /**
      * Return all currently selected packages.
+     *
+     * Mandatory apps are always included.
      */
     fun getSelectedPackages(): Set<String> {
 
-        // Make absolutely sure mandatory apps
-        // are always part of the whitelist.
         selectedPackages.addAll(
             mandatoryPackages
         )
@@ -200,10 +251,19 @@ class AppAdapter(
             packages
         )
 
-        // Mandatory apps can never be removed.
+        /*
+         * Mandatory apps can never be removed.
+         */
         selectedPackages.addAll(
             mandatoryPackages
         )
+
+        /*
+         * Apply the enabled-first ordering
+         * after restoring the whitelist.
+         */
+        displayedApps =
+            sortApps(displayedApps)
 
         notifyDataSetChanged()
     }
